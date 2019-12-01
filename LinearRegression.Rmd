@@ -1,0 +1,150 @@
+---
+title: "Linear Regression and Generalized Regression - An R tutorial"
+author: "Jieying Jiao"
+date: "12/1/2019"
+header-includes:
+    - \usepackage{bm}
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Linear regression
+
+For $n$ observations in total, responses are $y_i$ and corresponding measurements (covariates) are $\bf{x}_i$, with dimension $p$.
+We want to find the underlining relationship between the covariates and response. 
+
+## Independent data
+
+### Model setup
+\begin{equation}
+\begin{split}
+y_i &= \beta_0 + \bm{x}_i^\top \bm{\beta} + \varepsilon_i\\
+\varepsilon_i &\overset{iid}{\sim} N(0, \sigma_\varepsilon^2)\\
+\end{split}
+\end{equation}
+
+For categorical covariates, use dummy variables. A categorial covariate with $a$ different levels can be transformed into $a-1$ dummy variables.
+
+### Model Fitting
+
+```{r lr_1}
+plot(cars$speed, cars$dist)
+mod1 <- lm(dist ~ speed, data=cars)
+summary(mod1)
+```
+
+\begin{equation}
+\begin{split}
+\hat{y}_i &= \hat{\beta}_0 + \bm{x}^\top\hat{\bm{\beta}}\\
+r_i &= \hat{\varepsilon}_i = y_i - \hat{y}_i\\
+\end{split}
+\end{equation}
+
+### Model diagnostics
+
+```{r lr_2}
+par(mfrow= c(2, 2))
+plot(mod1)
+```
+
+\begin{itemize}
+\item Checking for linear trend: if there is any other trend missing here;
+\item Checking for normal assumption;
+\item Checking for equal variance (heteroscedasticity problem);
+\item Checking for influential observations.
+\end{itemize}
+
+## Panel (longitudinal) data -- Linear mixed effects model
+Data involves repeated observations over time on different individuals. Such data are clustered, and observations on same individuals should be correlated. So the independent data model is not suitable. Let $y_{i,j}$ being the $j_{th}$ observation on $i_{th}$ subject.
+
+\begin{equation}
+\begin{split}
+y_{ij} &= \beta_0 + \bm{x}_{ij}^\top \bm{\beta} + \tau_i + \varepsilon_{ij}\\
+\tau_i &\overset{iid}{\sim} N(0, \sigma_{\tau}^2)\\
+\varepsilon_{ij} &\overset{iid}{\sim} N(0, \sigma_{\varepsilon}^2)\\
+\end{split}
+\end{equation}
+
+Under this model setup, we have:
+\begin{equation}
+\begin{split}
+Cov(y_{ij}, y_{i'j'}) &= 0\\
+Cov(y_{ij}, y_{ij'}) &= Var(\tau_i) = \sigma_{\tau}^2\\
+Var(y_{ij}) &= \sigma_{\varepsilon}^2 + \sigma_{\tau}^2\\
+\end{split}
+\end{equation}
+
+
+### Model Visualization
+```{r lr_3}
+# install.packages("lme4")
+# install.packages("ggplot2")
+library(lme4)
+library(ggplot2)
+ggplot(aes(x = Days, y = Reaction), data = sleepstudy) + geom_line(aes(group = Subject))
+```
+
+
+### Model Fitting
+```{r lr_4}
+mod2 <- lmer(Reaction ~ Days + ( 1 | Subject), data = sleepstudy)
+summary(mod2)
+```
+
+### Model diagnostics
+```{r lr_5}
+library(car)
+plot(mod2)
+mod3 <- lmer(Reaction ~ Days + (Days | Subject), data = sleepstudy)
+plot(mod3)
+qqPlot(residuals(mod2))
+qqPlot(residuals(mod3))
+```
+
+
+# Generalized linear regression
+
+## Binary data - Logistic regression
+
+When response $y_i$ is a binary variable, which only takes value $\{0, 1\}$, we usualy use Binary distribution to model it: $y_i \sim \mbox{Bernoulli}(p_i)$. Parameter $p$ is the success probability, which takes value in the interval $[0, 1]$. We want to see how the potential covariates influence the success probability:
+\begin{equation}
+\begin{split}
+y_i &\overset{\mbox{inde}}{\sim} \mbox{Bernoulli}(p_i)\\
+\mbox{logit}(p_i) &= \log\frac{p_i}{1-p_i} = \eta_i = \beta_0 + \bm{x}_i^\top\bm{\beta}\\
+\end{split}
+\end{equation}
+
+```{r lr_6}
+library(ISLR)
+mod4 <- glm(Direction ~ Lag1 + Lag2 + Lag3 + Lag4 + Lag5 + Volume, data = Smarket, 
+            family = binomial)
+summary(mod4)
+```
+
+In order to do prediction, we need a threshold $k$ (usually 0.5), such that when $\hat{p}_i > k$, $\hat{y}_i = 1$.
+
+## Count data - Poisson regression
+When we have count data, Poisson distribution is usually assumed: $y_i \sim \mbox{Poisson}(\lambda_i)$:
+\begin{equation}
+\begin{split}
+y_i &\overset{\mbox{inde}}{\sim} \mbox{Poisson}(\lambda_i)\\
+\log \lambda_i &= \eta_i = \beta_0 + \bm{x}_i^\top\bm{\beta}\\
+\end{split}
+\end{equation}
+
+```{r lr_7}
+p <- read.csv("https://stats.idre.ucla.edu/stat/data/poisson_sim.csv")
+p <- within(p, {
+  prog <- factor(prog, levels=1:3, labels=c("General", "Academic", 
+                                                     "Vocational"))
+  id <- factor(id)
+})
+ggplot(p, aes(num_awards, fill = prog)) +
+  geom_histogram(binwidth=.5, position="dodge")
+
+mod5 <- glm(num_awards ~ prog + math, family="poisson", data=p)
+summary(mod5)
+```
